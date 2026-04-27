@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.20.4"
+__generated_with = "0.23.3"
 app = marimo.App(width="medium")
 
 with app.setup(hide_code=True):
@@ -104,7 +104,7 @@ def _():
     We will work with a locally stored image dataset which is organized as follows, which is typical of a dataset intended for image classification:
 
     ```
-    digits
+    dataset
         |---- 0  <- Subfolder is the class
             |---- 2026-01-01.png
             |---- 2026-01-02.png
@@ -119,7 +119,7 @@ def _():
 
 @app.cell
 def _():
-    dataset_path = Path("./datasets") / "digits"
+    dataset_path = mo.notebook_location() / "./dataset"
 
     path_exists = "✅ yes" if dataset_path.exists() else "❌ no"
 

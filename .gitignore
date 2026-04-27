@@ -26,6 +26,7 @@ venv/
 **/_version.py
 
 datasets/
+wasm/
 __marimo__/
 layouts/
 *.pkl

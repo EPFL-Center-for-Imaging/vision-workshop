@@ -13,7 +13,7 @@ from skimage.transform import rescale, resize
 from skimage.util import img_as_ubyte
 from skimage.exposure import rescale_intensity
 
-from extract_digits import keep_n_biggest_objects
+from preprocessing import keep_n_biggest_objects
 
 # Reload the sklearn `pipeline`
 with open("pipeline.pkl", "rb") as f:

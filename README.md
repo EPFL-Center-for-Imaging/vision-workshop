@@ -33,7 +33,7 @@ You should be able to access the notebook locally at: http://localhost:2718/.
 
 To reproduce..., run the scripts:
 
-- [`extract_digits.py`]() => Run on a folder with `.jpg` captures from the microscope. Will save a `digits` subfolder with extracted digits.
+- [`preprocessing.py`]() => Run on a folder with `.jpg` captures from the microscope. Will save a `digits` subfolder with extracted digits.
 - [`inference.py`]() => Run live using a saved `pipeline.pkl` on a camera device.
 
 ## License
