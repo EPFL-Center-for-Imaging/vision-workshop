@@ -1,11 +1,13 @@
 ![EPFL Center for Imaging logo](https://imaging.epfl.ch/resources/logo-for-gitlab.svg)
 # Introduction to Machine Learning for Vision Applications
 
-This workshop introduces [...]. It walks through:
+This workshop takes a hands-on approach to exploring some of the fundamental concepts of machine learning applied to computer vision. It walks through:
 
-- ...
-- ...
-- ...
+- Using Marimo
+- Working with an image dataset
+- Training an image classifier
+- Comparing different models
+- Running a model live on a camera feed
 
 ## Quick start
 
@@ -31,10 +33,21 @@ You should be able to access the notebook locally at: http://localhost:2718/.
 
 ## Scripts
 
-To reproduce..., run the scripts:
+**Acquiring a training set of images**
 
-- [`preprocessing.py`]() => Run on a folder with `.jpg` captures from the microscope. Will save a `digits` subfolder with extracted digits.
-- [`inference.py`]() => Run live using a saved `pipeline.pkl` on a camera device.
+To extract a training dataset of labelled digits from images captured with a camera device, use:
+
+- [`preprocessing.py`](./preprocessing.py)
+
+This script will save the training dataset in a local `dataset` folder. The class labels are inferred from the predetermined positions of the digits in a 3 X 4 grid.
+
+**Testing the model live on a camera**
+
+To extract digits and classify them based on the trained Scikit-learn pipeline, use:
+
+- [`inference.py`](./inference.py)
+
+This script will reload a Scikit-learn `pipeline.pkl` file, run the pipeline on the video feed from a camera device and display the results.
 
 ## License
 

@@ -8,8 +8,9 @@ with app.setup(hide_code=True):
 
 
 @app.cell(hide_code=True)
-async def _(Path, dataset_path, os, public_folder_path, requests, zipfile):
+async def _(Path, dataset_path, public_folder_path, requests, zipfile):
     import sys
+    import os
 
     # Seaborn isn't installed by default in Pyodide, so we install it here (only if the notebook runs on WebAssembly):
     if "pyodide" in sys.modules:
@@ -20,7 +21,7 @@ async def _(Path, dataset_path, os, public_folder_path, requests, zipfile):
         # Create the `public` folder
         if not public_folder_path.exists():
             os.mkdir(public_folder_path)
-    
+
         # Download and unzip the dataset from the repository
         if not dataset_path.exists():
             zip_path = Path("public") / "dataset.zip"
@@ -90,15 +91,11 @@ def _():
 
     **Mallory Wittwer** (Presenter)
 
-    [↗️ Repository](https://github.com/EPFL-Center-for-Imaging/vision-workshop)
+    [↗️ Workshop repository (GitHub)](https://github.com/EPFL-Center-for-Imaging/vision-workshop)
 
     ---
 
-    This workshop demonstrates machine learning concepts
-
-    The goal of this workshop is to help newcomers understand machine learning concepts. We'll introduce the [Scikit-learn](https://scikit-learn.org/stable/) library for **image classification** and discover how to work with interactive [Marimo](https://marimo.io/) notebooks.
-
-    For the demonstration, we will develop a **digit recognizer**, and learn along the way how to explore machine learning datasets with Marimo.
+    This workshop takes a hands-on approach to exploring some of the fundamental concepts of machine learning. We will introduce the [Scikit-learn](https://scikit-learn.org/stable/) library and use it to create a simple **image classification** system. Along the way, we will also see how [Marimo](https://marimo.io/) can help us create interactive elements and data visualizations to deepen our understanding.
     """)
     return
 
@@ -112,33 +109,31 @@ def _():
     2. Working with an image dataset
     3. Training an image classifier
     4. Comparing different models
-    5. Running the model live on a camera feed
+    5. Running a model live on a camera feed
     """)
     return
 
 
 @app.cell(hide_code=True)
-def _(example_slider):
+def _():
     mo.md(f"""
     ## Using Marimo
 
-    This is a [Marimo]() notebook. It contains Python code. It runs directly in the browser via WASM.
+    This is a [Marimo](https://marimo.io/) notebook. It contains alternating **Python code** cells and **Markdown** cells (text cells). You can edit the notebook's content to experiment with the code. The output of each code cell is displayed at the top of the cell.
+    """)
+    return
 
-    Cool features:
 
-    - Live docs
-    - View outline
-    - Explore variables
+@app.cell(hide_code=True)
+def _():
+    mo.md(f"""
+    ### Reactive execution
 
-    /// details | Shortcuts
+    In contrast to Jupyter notebooks, Marimo notebooks are **reactive**: updating a cell's state automatically re-runs all other cells that depend on it. As a result, code cells *do not* necessarily need to run from the beginning to the end of the notebook (they can be be placed in any order).
 
-    - `Ctrl + .` to toggle toggle app view.
-    - `Ctrl + h` to hide/show the code.
-    ///
+    #### Running cells
 
-    {example_slider}
-
-    The selected value is: {example_slider.value}
+    When you edit a cell, it becomes *stale*; you have to click the yellow "Run" buton next to the cell to execute it (this will also update all dependent cells). You can also click the "Play" button in the bottom-right corner of the interface to run and update all *stale* cells at once.
     """)
     return
 
@@ -146,7 +141,37 @@ def _(example_slider):
 @app.cell
 def _():
     example_slider = mo.ui.slider(start=1, stop=10, value=3, label="Select a value", show_value=True, full_width=True)
+
+    example_slider
     return (example_slider,)
+
+
+@app.cell
+def _(example_slider):
+    mo.md(f"""
+    The selected value is: **{example_slider.value}**
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(f"""
+    ### Side bar
+
+    Take a look at the side bar on the left side of the screen; you will see options to *View files*, *Explore variables*, *Manage packages*, *View outline*, *View live docs*, and more.
+
+    ### Toggle app view
+
+    Click "Toggle app view" in the lower-right corner of the screen, or use the shortcut `Ctrl + .` to hide or show the code below the code cells.
+
+    ### Running Python in the browser
+
+    Marimo notebooks can be used locally or exported to WebAssembly to run directly in the browser via [Pyodide](https://pyodide.org/en/stable/). If you prefer to set up and run this notebook locally, you can refer to the [setup instructions](https://github.com/EPFL-Center-for-Imaging/vision-workshop).
+
+    ---
+    """)
+    return
 
 
 @app.cell(hide_code=True)
@@ -154,7 +179,7 @@ def _():
     mo.md(r"""
     ## Working with an image dataset
 
-    We will work with a locally stored image dataset which is organized as follows, which is typical of a dataset intended for image classification:
+    We will work with a dataset of images organized as follows, which is typical of a dataset intended for image classification:
 
     ```
     dataset
@@ -166,27 +191,26 @@ def _():
         |---- 2
         |---- ...
     ```
+
+    Let's start by making sure we have access to the dataset:
     """)
     return
 
 
 @app.cell
 def _(Path):
-    public_folder_path = Path("public")
+    public_folder_path = Path("./public")
 
     dataset_path = public_folder_path / "dataset"
-    return dataset_path, public_folder_path
 
-
-@app.cell
-def _(dataset_path):
     path_exists = "✅ yes" if dataset_path.exists() else "❌ no"
 
+    # We use Marimo's "vstack" to display items stacked vertically:
     mo.vstack([
         mo.md(f"Dataset path: **{str(dataset_path.resolve())}**"),
         mo.md(f"Path exists: **{path_exists}**")
     ])
-    return
+    return dataset_path, public_folder_path
 
 
 @app.cell(hide_code=True)
@@ -194,7 +218,7 @@ def _():
     mo.md(r"""
     ### Loading the dataset
 
-    The first step in our analysis is to load the dataset into a [Pandas DataFrame](https://pandas.pydata.org/), which contains one row per image and columns for the image file path and class label (based on the subfolder names). We also read the image files and add a third "image" column to display an preview of the images.
+    The first step in our analysis is to load the dataset into a [Pandas DataFrame](https://pandas.pydata.org/), which contains one row per image and columns for the image file path and class label (the class names are given by the subfolder names). We also read the image files and add a third "image" column to display an preview of the images.
     """)
     return
 
@@ -209,13 +233,16 @@ def _():
 
 @app.cell
 def _(Path, dataset_path, img2url, imread, load_dataset_btn, pd):
+    # We use `mo.stop` so that this cell only executes when the button is clicked:
     mo.stop(not load_dataset_btn.value, mo.md("Click the button to load the dataset."))
 
     def read_image(image_path) -> str:
+        """Read an image file and encode its contents as a URL."""
         img = imread(image_path)
         return img2url(img)
 
-    def read_dataset(dataset_path: Path):
+    def load_dataset(dataset_path: Path):
+        """Load an image classification dataset into a Pandas DataFrame and add an image preview."""
         class_labels = [subdir.name for subdir in list(dataset_path.glob("*"))]
 
         rows = []
@@ -231,18 +258,18 @@ def _(Path, dataset_path, img2url, imread, load_dataset_btn, pd):
 
         return df, class_labels
 
-    df, class_labels = read_dataset(dataset_path)
+    df, class_labels = load_dataset(dataset_path)
 
     num_labels = len(class_labels)  # Number of classes
 
-    df
+    df  # Display the DataFrame
     return class_labels, df, num_labels
 
 
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    We also load all the images into a single Numpy array, which we will use in the downstream analysis:
+    We also load all the images into a single Numpy array, which we will use extensively in the downstream analysis:
     """)
     return
 
@@ -296,7 +323,7 @@ def _():
     mo.md(r"""
     ### Adding measurements
 
-    To add a few numerical measurements to our dataset, we compute the mean intensity value of the images, as well as the standard deviation of these values. To do this, we use the `.apply` method of Pandas dataframes, which applies a Python function to every row in our dataframe.
+    To add a few numerical measurements to our dataset, we compute the mean intensity value of the images, as well as the standard deviation of intensity values. To do this, we use the `.apply` method of Pandas DataFrames, which applies a Python function to every row in the DataFrame.
     """)
     return
 
@@ -314,6 +341,7 @@ def _(df, measurements_btn, np, url2img):
     mo.stop(not measurements_btn.value, mo.md("Click the button to compute the measurements."))
 
     def compute_mean_intensity(base64_image: str):
+        """Compute the mean gray level intensity of an image."""
         img = url2img(base64_image)
         mean_intensity = np.mean(img)
         return mean_intensity
@@ -321,13 +349,14 @@ def _(df, measurements_btn, np, url2img):
     df["mean_intensity"] = df["image"].apply(compute_mean_intensity)
 
     def compute_std_intensity(base64_image: str):
+        """Compute the standard deviation of the intensity values of an image."""
         img = url2img(base64_image)
         std_intensity = np.std(img)
         return std_intensity
 
     df["std_intensity"] = df["image"].apply(compute_std_intensity)
 
-    # Display the first few rows to confirm that we have our measurements:
+    # We display the first few rows to confirm that we have our measurements:
     df[["image", "mean_intensity", "std_intensity"]].head()
     return
 
@@ -335,18 +364,18 @@ def _(df, measurements_btn, np, url2img):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    ### Interactive plotting
+    ### Using the DataFrame viewer
 
-    Marimo's built-in DataFrame viewer is a powerful tool for exploring datasets. In particular, it offers a **Search** functionality which can be used to filter data, and a **Chart builder** tool that can be used to create plots without writing any code.
+    Marimo's built-in DataFrame viewer is a powerful tool for exploring datasets. It offers a **Search** functionality which can be used to filter data, and a **Chart builder** that can be used to create plots without writing any code.
 
 
     /// admonition | Exercise
 
-    1. Can you *Search* through the dataframe and only display classes *3* and *4*, sorted by *mean_intensity* ?
+    1. Can you *search* the DataFrame and display only classes *3* and *4*, sorted by *mean_intensity* ?
 
-    2. Can you use Marimo's *Chart builder* tool to plot
+    2. Can you use the *Chart builder* tool to plot
 
-        i. A 2D scatter plot of the mean versus standard deviation intensity?
+        i. A 2D scatter of the mean versus standard deviation intensity?
 
         ii. A pie chart respresenting the counts in each class?
 
@@ -426,7 +455,7 @@ def _():
 def _(images_normed, np):
     pixel_features = np.reshape(images_normed, (len(images_normed), -1))
 
-    mo.md(f"➡️ Shape of pixel value features: **{pixel_features.shape}**")
+    mo.md(f"➡️ Shape of pixel value array: **{pixel_features.shape}**")
     return (pixel_features,)
 
 
@@ -482,7 +511,7 @@ def _():
     mo.md(r"""
     #### Principal Component Analysis (PCA)
 
-    [PCA](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html) is a well-known **dimensionality reduction** technique that allows a high-dimensional dataset (such as our dataset consiting of pixel value features) to be projected onto a lower-dimensional space while retaining most of the variance in the data. The PCA components are ranked according to the proportion of variance they explain; thus, the first few components can often serve as effective **features** for classification.
+    [PCA](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html) is a well-known **dimensionality reduction** technique that allows a high-dimensional dataset (such as our array of flattened pixel values) to be projected onto a lower-dimensional space while retaining most of the variance in the data. The PCA components are ranked according to the proportion of variance they explain; thus, the first few components can often serve as effective **features** for classification.
 
     Let's apply PCA to our dataset and limit the decomposition to **2** components:
     """)
@@ -505,9 +534,9 @@ def _(X, compute_pca_btn, x_train, x_val):
 
     pca = PCA(n_components=2)
 
-    pca.fit(x_train)
+    pca.fit(x_train)  # "Fit" the PCA estimator to the training data
 
-    x_train_projected = pca.transform(x_train)
+    x_train_projected = pca.transform(x_train)  # "Transform" (=project) the data into the PCA feature space
     x_val_projected = pca.transform(x_val)
     X_projected = pca.transform(X)
 
@@ -517,6 +546,7 @@ def _(X, compute_pca_btn, x_train, x_val):
 
 @app.cell
 def _(x_train_projected):
+    # We also compute the bounds of the projected training data (we'll use this later)
     extent = [x_train_projected[:, 0].min(), x_train_projected[:, 0].max(), x_train_projected[:, 1].min(), x_train_projected[:, 1].max()]
     return (extent,)
 
@@ -541,30 +571,30 @@ def _(X_projected, df):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    Let's plot the `PCA-0` and `PCA-1` features on a two-dimensional chart (in a slightly nicer way than the built-in *Chart builder* allows).
+    Let's plot the `PCA-0` and `PCA-1` features on a two-dimensional chart, in a slightly nicer way than the built-in *Chart builder* allows.
     """)
     return
 
 
 @app.cell
 def _():
-    switch_show_images_pca_plot = mo.ui.switch(label="Show images")
-    return (switch_show_images_pca_plot,)
+    switch_show_images = mo.ui.switch(label="Show images")
+    return (switch_show_images,)
 
 
 @app.cell
-def _(create_altair_chart, df, switch_show_images_pca_plot):
-    chart_pca = create_altair_chart(df, x_col="PCA-0", y_col="PCA-1", show_images=switch_show_images_pca_plot.value, size=700)
+def _(create_altair_chart, df, switch_show_images):
+    chart_pca = create_altair_chart(df, x_col="PCA-0", y_col="PCA-1", show_images=switch_show_images.value, size=700)
 
     chart_pca = mo.ui.altair_chart(chart_pca)  # To make the plot interactive
     return (chart_pca,)
 
 
 @app.cell
-def _(chart_pca, switch_show_images_pca_plot):
-    _selection = chart_pca.value[['class', 'image', 'PCA-0', 'PCA-1']]
+def _(chart_pca, switch_show_images):
+    _selection = chart_pca.value[['class', 'image', 'PCA-0', 'PCA-1']]  # The chart's "value" is the data in the selected region
 
-    mo.vstack([switch_show_images_pca_plot, chart_pca, _selection])
+    mo.vstack([switch_show_images, chart_pca, _selection])
     return
 
 
@@ -599,10 +629,10 @@ def _(ConfusionMatrixDisplay, confusion_matrix):
         # Score on the validation set
         acc_val = model.score(X=x_val, y=y_val)
 
-        # Predict on the training set
+        # Predictions on the training set
         y_pred_train = model.predict(x_train)
 
-        # Predict on the validation set
+        # Predictions on the validation set
         y_pred_val = model.predict(x_val)
 
         # Confusion matrices
@@ -661,9 +691,7 @@ def _(
 
     mo.vstack([
         mo.md("""### Baseline model"""),
-        mo.hstack([
-            print_classification_results(baseline_results),
-        ])
+        mo.hstack([print_classification_results(baseline_results)])
     ], align="center")
     return
 
@@ -708,9 +736,7 @@ def _(
 
     mo.vstack([
         mo.md("""### Logistic regression"""),
-        mo.hstack([
-            print_classification_results(linear_results),
-        ])
+        mo.hstack([print_classification_results(linear_results)])
     ], align="center")
     return LogisticRegression, linear_model, linear_results
 
@@ -773,23 +799,9 @@ def _():
 
 
 @app.cell
-def _():
-    split_dropdown_dt = mo.ui.dropdown(options=["training", "validation"], value="validation", label="Show on split ")
-    return (split_dropdown_dt,)
-
-
-@app.cell
-def _():
-    # We also create a slider to tweak the model's `max_depth` parameter interactively:
-    max_depth_selector = mo.ui.slider(start=1, stop=15, value=5, show_value=True, label="Max depth ", debounce=True)
-    return (max_depth_selector,)
-
-
-@app.cell
 def _(
     fit_and_evaluate_classifier,
     fit_decision_tree_btn,
-    max_depth_selector,
     x_train_projected,
     x_val_projected,
     y_train,
@@ -799,24 +811,35 @@ def _(
 
     from sklearn.tree import DecisionTreeClassifier
 
-    decision_tree_model = DecisionTreeClassifier(max_depth=max_depth_selector.value)  # TODO: this doesn't work with the ancestor
+    _model = DecisionTreeClassifier()
 
-    decision_tree_results = fit_and_evaluate_classifier(decision_tree_model, x_train_projected, y_train, x_val_projected, y_val)
+    _decision_tree_results = fit_and_evaluate_classifier(_model, x_train_projected, y_train, x_val_projected, y_val)
 
     mo.vstack([
         mo.md("""### Decision tree"""),
-        mo.hstack([
-            print_classification_results(decision_tree_results),
-        ])
+        mo.hstack([print_classification_results(_decision_tree_results)])
     ], align="center")
-    return decision_tree_model, decision_tree_results
+    return (DecisionTreeClassifier,)
+
+
+@app.cell
+def _():
+    # We also create a slider to tweak the model's `max_depth` parameter:
+    max_depth_selector = mo.ui.slider(start=1, stop=15, value=5, show_value=True, label="Max depth ", debounce=True)
+    return (max_depth_selector,)
+
+
+@app.cell
+def _():
+    split_dropdown_dt = mo.ui.dropdown(options=["training", "validation"], value="validation", label="Show on split ")
+    return (split_dropdown_dt,)
 
 
 @app.cell
 def _(
-    decision_tree_model,
-    decision_tree_results,
+    DecisionTreeClassifier,
     extent,
+    fit_and_evaluate_classifier,
     max_depth_selector,
     plot_classification_results,
     split_dropdown_dt,
@@ -825,6 +848,10 @@ def _(
     y_train,
     y_val,
 ):
+    decision_tree_model = DecisionTreeClassifier(max_depth=max_depth_selector.value)
+
+    decision_tree_results = fit_and_evaluate_classifier(decision_tree_model, x_train_projected, y_train, x_val_projected, y_val)
+
     if split_dropdown_dt.value == "training":
         _fig = plot_classification_results(decision_tree_model, x_train_projected, y_train, decision_tree_results, extent, split="training")
     elif split_dropdown_dt.value == "validation":
@@ -839,11 +866,17 @@ def _():
     mo.md(r"""
     /// admonition | Exercise
 
-    - Can you fit an [SVC](https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html) model to the data? What do the classification boundaries look like?
+    Can you fit one of these models to the data? What do the classification boundaries look like?
+
+    - [Support Vector Classifier (SVC)](https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html)
+    - [Random Forest Classifier](https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html)
+    - [Multi-layer Perceptron (MLP)](https://scikit-learn.org/stable/modules/generated/sklearn.neural_network.MLPClassifier.html)
 
     ///
 
     /// details | Solution
+
+    SVC:
 
     ```python
     from sklearn.svm import SVC
@@ -857,53 +890,38 @@ def _():
         plot_classification_results(svc_model, x_val_projected, y_val, svc_results, extent, split="validation")
     ])
     ```
+
+    Random forest:
+
+    ```python
+    from sklearn.ensemble import RandomForestClassifier
+
+    tree_model = RandomForestClassifier(n_estimators=100)
+
+    tree_results = fit_and_evaluate_classifier(tree_model, x_train_projected, y_train, x_val_projected, y_val)
+
+    mo.vstack([
+        plot_classification_results(tree_model, x_train_projected, y_train, tree_results, extent, split="training"),
+        plot_classification_results(tree_model, x_val_projected, y_val, tree_results, extent, split="validation")
+    ])
+    ```
+
+    MLP:
+
+    ```python
+    from sklearn.neural_network import MLPClassifier
+
+    nn_model = MLPClassifier(hidden_layer_sizes=(100,))
+
+    nn_results = fit_and_evaluate_classifier(nn_model, x_train_projected, y_train, x_val_projected, y_val)
+
+    mo.vstack([
+        plot_classification_results(nn_model, x_train_projected, y_train, nn_results, extent, split="training"),
+        plot_classification_results(nn_model, x_val_projected, y_val, nn_results, extent, split="validation")
+    ])
+    ```
     ///
     """)
-    return
-
-
-@app.cell
-def _():
-    # from sklearn.ensemble import RandomForestClassifier
-
-    # tree_model = RandomForestClassifier(n_estimators=100)
-
-    # tree_results = fit_and_evaluate_classifier(tree_model, x_train_projected, y_train, x_val_projected, y_val)
-
-    # mo.vstack([
-    #     plot_classification_results(tree_model, x_train_projected, y_train, tree_results, extent, split="training"),
-    #     plot_classification_results(tree_model, x_val_projected, y_val, tree_results, extent, split="validation")
-    # ])
-    return
-
-
-@app.cell
-def _():
-    # from sklearn.svm import SVC
-
-    # svc_model = SVC(C=1.0)
-
-    # svc_results = fit_and_evaluate_classifier(svc_model, x_train_projected, y_train, x_val_projected, y_val)
-
-    # mo.vstack([
-    #     plot_classification_results(svc_model, x_train_projected, y_train, svc_results, extent, split="training"),
-    #     plot_classification_results(svc_model, x_val_projected, y_val, svc_results, extent, split="validation")
-    # ])
-    return
-
-
-@app.cell
-def _():
-    # from sklearn.neural_network import MLPClassifier
-
-    # nn_model = MLPClassifier(hidden_layer_sizes=(100,))
-
-    # nn_results = fit_and_evaluate_classifier(nn_model, x_train_projected, y_train, x_val_projected, y_val)
-
-    # mo.vstack([
-    #     plot_classification_results(nn_model, x_train_projected, y_train, nn_results, extent, split="training"),
-    #     plot_classification_results(nn_model, x_val_projected, y_val, nn_results, extent, split="validation")
-    # ])
     return
 
 
@@ -912,7 +930,7 @@ def _():
     mo.md(r"""
     ### Increasing PCA dimensionality
 
-    So far, we have applied our classifiers only to the two-dimensional feature space corresponding to the first two PCA components. This approach is practical because it allows us to plot and interpret the classification boundaries, but it may not be the most effective solution. What happens if we increase the number of components in our PCA decomposition? Let's test this:
+    So far, we have applied our classifiers only to the two-dimensional feature space corresponding to the first two PCA components. Working with two components is practical (and pedagogical) because it allows us to plot and interpret the classification boundaries, but it may not be the most effective solution. What happens if we increase the number of components in our PCA decomposition?
     """)
     return
 
@@ -948,11 +966,7 @@ def _(
         n_components=n_components_slider.value,
     )
 
-    mo.vstack([
-        n_components_slider,
-        mo.md("---"),
-        print_classification_results(_results)
-    ])
+    mo.vstack([n_components_slider, mo.hstack([print_classification_results(_results)])], align="center")
     return (fit_model_with_pca,)
 
 
@@ -982,7 +996,6 @@ def _(
     y_train,
     y_val,
 ):
-    # TODO: add a `Spinner`
     mo.stop(not pca_grid_search_btn.value, mo.md("Click the button to run the computation."))
 
     pca_grid_search_btn
@@ -1022,7 +1035,7 @@ def _(
     from sklearn.pipeline import Pipeline
 
     pipe = Pipeline([
-        ("pca", PCA(n_components=best_n_components)),  # We use the best number of components from our exhaustive search
+        ("pca", PCA(n_components=best_n_components)),  # We use the best number of components from our parameter search
         ("model", LogisticRegression(max_iter=1000)),
     ])
 
@@ -1070,27 +1083,43 @@ def _(Path, dump, pipe, save_btn):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    ## Running the model live on a camera feed
+    ## Running a model live on a camera feed
 
     Now that our pipeline is saved, we can reload it in other Python programs and apply our classifier to new images, for example those coming from a live camera feed.
 
     Here, we have put together a Python script that captures video frames from a USB camera device, identifies a bounding box around each object in the image, and applies our Scikit-learn pipeline to each of object to classify them.
 
-    [↗️ Script link (TODO)]()
+    [↗️ Inference script](https://github.com/EPFL-Center-for-Imaging/vision-workshop/blob/main/inference.py)
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mermaid_chart):
+    mo.md(f"""
+    ## Conclusion
+
+    In this workshop, we have been exposed to some of the main steps of a computer vision project: 
+
+    {mermaid_chart}
+
+    Thanks to this, we have managed to develop a working image classification application.
     """)
     return
 
 
 @app.cell(hide_code=True)
 def _():
-    mo.md(r"""
-    ## Conclusion (TODO)
-
-    We have seen that:
-
-    How important was the choice of model for our application?
+    mermaid_chart = mo.mermaid("""
+    flowchart LR
+        A(🔬 Data inspection) --> B(⚙️ Preprocessing)
+        B --> C(🛠️ Featurization)
+        C --> D(🔍 Model selection)
+        D --> E(🎓 Training)
+        E --> F(⚖️ Evaluation)
+        F --> G(🔋 Inference)
     """)
-    return
+    return (mermaid_chart,)
 
 
 @app.cell(hide_code=True)
@@ -1100,7 +1129,7 @@ def _():
 
     If you have any feedback you'd like to share with us about this workshop, feel free to use the following form. Thank you!
 
-    - [Feedback form](https://forms.gle/YwuoduC7azgQnPRX7)
+    - [↗️ Feedback form](https://forms.gle/YwuoduC7azgQnPRX7)
     """)
     return
 
@@ -1110,14 +1139,15 @@ def _():
     mo.md(r"""
     ## Utility functions
 
-    The Python functions below are used throughout the notebook.
+    The Python functions in this section are used throughout the notebook, but they are not essential to understand the concepts; so, for the sake of clarity, we have grouped them together here.
     """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(BytesIO, Image, alt, base64, np):
     def url2img(base64_image: str) -> np.ndarray:
+        """Convert an image encoded as a base64 URL string to a Numpy array."""
         header, encoded = base64_image.split(",", 1)
         img = Image.open(BytesIO(base64.b64decode(encoded)))
         img_arr = np.array(img)
@@ -1125,6 +1155,7 @@ def _(BytesIO, Image, alt, base64, np):
 
 
     def img2url(img_arr: np.ndarray) -> str:
+        """Convert an image array to a base64-encoded URL string, so that the image can be rendered in a DataFrame column."""
         pil_img = Image.fromarray(img_arr)
         output = BytesIO()
         pil_img.save(output, format='PNG')
@@ -1133,7 +1164,8 @@ def _(BytesIO, Image, alt, base64, np):
 
 
     def compute_thumbnail(path):
-        pil_img = Image.open(path)#.convert("RGB")
+        """Compute a 15x15px image thumbnail that can be displayed in Altair charts."""
+        pil_img = Image.open(path)
 
         output_thumb = BytesIO()
         pil_img.resize((15, 15)).save(output_thumb, format='PNG')
@@ -1143,6 +1175,7 @@ def _(BytesIO, Image, alt, base64, np):
 
 
     def create_altair_chart(df, x_col, y_col, show_images, size=700):
+        """Create a 2D scatter plot with Altair, with the option to show image thumbnails directly on the plot."""
         x_domain = [df[x_col].min(), df[x_col].max()]
         y_domain = [df[y_col].min(), df[y_col].max()]
 
@@ -1191,7 +1224,7 @@ def _(BytesIO, Image, alt, base64, np):
     return create_altair_chart, img2url, predict_on_regular_grid, url2img
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(ListedColormap, pd, plt, predict_on_regular_grid, sns):
     def plot_classification_results(model, X, y, results, extent, split="validation", palette_name="pastel"):
         """Display a confusion matrix and a 2D scatter plot of PCA-0/PCA-1 coordinates colored according to class indices."""
@@ -1256,7 +1289,7 @@ def _(ListedColormap, pd, plt, predict_on_regular_grid, sns):
     return (plot_classification_results,)
 
 
-@app.function
+@app.function(hide_code=True)
 def print_classification_results(results: dict):
     """Print a small classification report in Marimo markdown format."""
     accuracy_train = results["accuracy_training"]
@@ -1270,7 +1303,7 @@ def print_classification_results(results: dict):
     """)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(plt):
     def plot_image_before_after_normalization(img_before, img_after):
         """Display a side-by-side comparison of an image before and after min/max normalization."""
@@ -1288,7 +1321,7 @@ def _(plt):
     return (plot_image_before_after_normalization,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(fit_model_with_pca, np, plt):
     def plot_accuracy_vs_pca_components(model, x_train, x_val, y_train, y_val, max_components=20):
         """Plot training and validation accuracies against the number of PCA components."""
@@ -1316,167 +1349,6 @@ def _(fit_model_with_pca, np, plt):
         return fig, pca_components_best_valid_acc
 
     return (plot_accuracy_vs_pca_components,)
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
-    ## Optional
-    """)
-    return
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
-    ### Inference time (latency)
-    """)
-    return
-
-
-@app.cell
-def _():
-    # def measure_model_latency_ms(model, x_train, y_train, x_val, y_val, n_components):
-    #     # Fit the model
-    #     t0 = time.perf_counter()
-
-    #     pca = PCA(n_components)
-    #     pca.fit(x_train)
-    #     x_train_projected = pca.transform(x_train)
-    #     model.fit(x_train_projected, y_train)
-
-    #     # results = fit_and_evaluate_classifier(model, x_train, y_train, x_val, y_val)
-    #     time_fit = time.perf_counter() - t0
-    #     time_fit_ms = time_fit * 1000
-
-    #     # Measure inference time on the training set
-    #     t0 = time.perf_counter()
-    #     # x_train_projected = pca.transform(x_train)
-    #     model.predict(x_train_projected)
-    #     time_predict = time.perf_counter() - t0
-
-    #     latency = time_predict / len(x_train)  # Prediction time for 1 sample
-
-    #     latency_us = latency * 1000_000
-
-    #     return time_fit_ms, latency_us
-
-
-    # n_components = 7
-
-    # # fit_time_svc, latency_svc = measure_model_latency_ms(SVC(), x_train, y_train, x_val, y_val, n_components)
-    # fit_time_dtree, latency_dtree = measure_model_latency_ms(DecisionTreeClassifier(max_depth=5), x_train, y_train, x_val, y_val, n_components)
-    # fit_time_linear, latency_linear = measure_model_latency_ms(LogisticRegression(max_iter=1000), x_train, y_train, x_val, y_val, n_components)
-
-    # mo.md(f"""
-    # | Model | Fitting time (ms) | Prediction time (us) |
-    # | ----- | ------------ | --------------- |
-    # | Decision tree | {fit_time_dtree:.2f} | {latency_dtree:.2f} |
-    # | Logisitc regression | {fit_time_linear:.2f} | {latency_linear:.2f} |
-    # """)
-    return
-
-
-@app.cell
-def _():
-    ## TO DELETE
-    # test_linear_model_cb = mo.ui.checkbox(label="Linear model", value=True)
-    # test_dtree_model_cb = mo.ui.checkbox(label="Decision tree", value=True)
-    # test_svc_model_cb = mo.ui.checkbox(label="SVC model", value=False)
-
-    # mo.vstack([
-    #     test_size_slider,
-    #     mo.hstack([
-    #         test_linear_model_cb, test_dtree_model_cb, test_svc_model_cb,
-    #     ], justify="start")
-    # ])
-    return
-
-
-@app.cell
-def _():
-    # # Create a list of models to fit and evaluate
-    # models = {}
-
-    # if test_linear_model_cb.value:
-    #     models["linear_model"] = {"model": LogisticRegression(max_iter=1000)}
-
-    # if test_dtree_model_cb.value:
-    #     models["decision_tree"] = {"model": DecisionTreeClassifier(max_depth=7)}
-
-    # if test_svc_model_cb.value:
-    #     models["svc"] = {"model": SVC()}
-
-    # # Run the fitting & evaluation
-    # for model_name in models:
-    #     train_accs, valid_accs = accuracy_vs_dimensionality(
-    #         model=models[model_name]['model'], 
-    #         x_train=x_train, 
-    #         x_val=x_val, 
-    #         y_train=y_train, 
-    #         y_val=y_val,
-    #         max_components=max_components, 
-    #     )
-    #     models[model_name]["train_accs"] = train_accs
-    #     models[model_name]["valid_accs"] = valid_accs
-
-    # fig, ax = plt.subplots(figsize=(8, 6))
-    # for _model_name, results in models.items():
-    #     ax.plot(np.arange(1, max_components+1), results["train_accs"], label=f"{_model_name} - training")
-    #     ax.plot(np.arange(1, max_components+1), results["valid_accs"], label=f"{_model_name} - validation")
-    # ax.set_xlabel("PCA components")
-    # ax.set_ylabel("Accuracy")
-    # ax.set_ylim(0, 1)
-    # plt.legend()
-    return
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
-    ### Effect of training set size
-    """)
-    return
-
-
-@app.cell
-def _():
-    # train_size_slider = mo.ui.slider(start=0, stop=1, value=1, step=0.1, label="Training fraction", show_value=True)
-    return
-
-
-@app.cell
-def _():
-    # max_idx = int(np.ceil(train_size_slider.value * len(x_train)))
-
-    # _x_train_reduced = x_train[:max_idx]
-    # _y_train_reduced = y_train[:max_idx]
-
-    # _model = LogisticRegression(max_iter=1000)
-
-    # _train_accs, _valid_accs = accuracy_vs_dimensionality(
-    #         model=_model,
-    #         x_train=_x_train_reduced, 
-    #         x_val=x_val, 
-    #         y_train=_y_train_reduced, 
-    #         y_val=y_val,
-    #         max_components=max_components, 
-    #     )
-
-    # _fig, _ax = plt.subplots(figsize=(8, 6))
-    # _ax.plot(np.arange(1, max_components+1), _train_accs, label=f"Training")
-    # _ax.plot(np.arange(1, max_components+1), _valid_accs, label=f"Validation")
-    # _ax.set_xlabel("PCA components")
-    # _ax.set_ylabel("Accuracy")
-    # _ax.set_ylim(0, 1)
-    # plt.legend()
-
-    # mo.vstack([
-    #     train_size_slider,
-    #     _fig,
-    #     f"{_x_train_reduced.shape}"
-    # ])
-    return
 
 
 if __name__ == "__main__":
