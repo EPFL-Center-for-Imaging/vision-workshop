@@ -7,7 +7,7 @@ with app.setup(hide_code=True):
     import marimo as mo
 
 
-@app.cell(hide_code=True)
+@app.cell
 async def _():
     import sys
 
@@ -18,15 +18,17 @@ async def _():
         import seaborn as sns
     else:
         import seaborn as sns
-    return (sns,)
+    return sns, sys
 
 
 @app.cell(hide_code=True)
 def _():
     import base64
+    import time
+    import zipfile
+    import requests
     from pathlib import Path
     from io import BytesIO
-    import time
     from pickle import dump
 
     import numpy as np
@@ -58,7 +60,9 @@ def _():
         np,
         pd,
         plt,
+        requests,
         rescale_intensity,
+        zipfile,
     )
 
 
@@ -70,7 +74,7 @@ def _():
 
     **Mallory Wittwer** (Presenter)
 
-    [↗️ Repository]()
+    [↗️ Repository](https://github.com/EPFL-Center-for-Imaging/vision-workshop)
 
     ---
 
@@ -151,16 +155,35 @@ def _():
 
 
 @app.cell
-def _():
-    dataset_path = mo.notebook_location() / "public" / "dataset"
+def _(Path):
+    dataset_path = Path("public") / "dataset"
+    return (dataset_path,)
 
+
+@app.cell
+def _(Path, dataset_path, requests, sys, zipfile):
+    if "pyodide" in sys.modules:
+        # Unzip the dataset from the public folder
+        zip_path = Path("public") / "dataset.zip"
+        url = mo.notebook_location() / "public" / "dataset.zip"
+        if not dataset_path.exists():
+            r = requests.get(str(url))
+            r.raise_for_status()
+            zip_path.write_bytes(r.content)
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(dataset_path)
+    return
+
+
+@app.cell
+def _(dataset_path):
     path_exists = "✅ yes" if dataset_path.exists() else "❌ no"
 
     mo.vstack([
         mo.md(f"Dataset path: **{str(dataset_path.resolve())}**"),
         mo.md(f"Path exists: **{path_exists}**")
     ])
-    return (dataset_path,)
+    return
 
 
 @app.cell(hide_code=True)
