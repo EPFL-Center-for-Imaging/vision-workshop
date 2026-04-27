@@ -4,13 +4,30 @@ __generated_with = "0.23.3"
 app = marimo.App(width="medium")
 
 with app.setup(hide_code=True):
+    import marimo as mo
+
+
+@app.cell(hide_code=True)
+async def _():
+    import sys
+
+    # Seaborn isn't installed by default in Pyodide, so we install it here (only if the notebook runs on WebAssembly):
+    if "pyodide" in sys.modules:
+        import micropip
+        await micropip.install("seaborn")
+        import seaborn as sns
+    else:
+        import seaborn as sns
+    return (sns,)
+
+
+@app.cell(hide_code=True)
+def _():
     import base64
     from pathlib import Path
     from io import BytesIO
     import time
     from pickle import dump
-
-    import marimo as mo
 
     import numpy as np
     import pandas as pd
@@ -19,7 +36,6 @@ with app.setup(hide_code=True):
     import matplotlib.pyplot as plt
     from matplotlib.colors import ListedColormap
 
-    import seaborn as sns
     import altair as alt
 
     from skimage.io import imread
@@ -27,6 +43,23 @@ with app.setup(hide_code=True):
     from skimage.exposure import rescale_intensity
 
     from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+
+    return (
+        BytesIO,
+        ConfusionMatrixDisplay,
+        Image,
+        ListedColormap,
+        Path,
+        alt,
+        base64,
+        confusion_matrix,
+        dump,
+        imread,
+        np,
+        pd,
+        plt,
+        rescale_intensity,
+    )
 
 
 @app.cell(hide_code=True)
@@ -119,7 +152,7 @@ def _():
 
 @app.cell
 def _():
-    dataset_path = mo.notebook_location() / "./dataset"
+    dataset_path = mo.notebook_location() / "public" / "dataset"
 
     path_exists = "✅ yes" if dataset_path.exists() else "❌ no"
 
@@ -149,7 +182,7 @@ def _():
 
 
 @app.cell
-def _(dataset_path, img2url, load_dataset_btn):
+def _(Path, dataset_path, img2url, imread, load_dataset_btn, pd):
     mo.stop(not load_dataset_btn.value, mo.md("Click the button to load the dataset."))
 
     def read_image(image_path) -> str:
@@ -189,7 +222,7 @@ def _():
 
 
 @app.cell
-def _(df):
+def _(df, imread, np):
     images = np.array([imread(f) for f in df['image_path']])
 
     mo.md(f"✅ Read all the images into a Numpy array of shape **{images.shape}** corresponding to (N, X, Y).")
@@ -213,7 +246,7 @@ def _(class_labels):
 
 
 @app.cell
-def _(class_dropdown, df, images):
+def _(class_dropdown, df, images, np, plt):
     def show_images_selection(images_selection, ncols=7):
         nrows = int(np.ceil(len(images_selection) / ncols))
         fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(12, 6))
@@ -251,7 +284,7 @@ def _():
 
 
 @app.cell
-def _(df, measurements_btn, url2img):
+def _(df, measurements_btn, np, url2img):
     mo.stop(not measurements_btn.value, mo.md("Click the button to compute the measurements."))
 
     def compute_mean_intensity(base64_image: str):
@@ -337,7 +370,7 @@ def _():
 
 
 @app.cell
-def _(images):
+def _(images, np, rescale_intensity):
     images_normed = np.array([rescale_intensity(img, out_range=(0, 1)) for img in images])
 
     mo.md(f"➡️ Shape of images (normalized): **{images_normed.shape}**")
@@ -345,7 +378,7 @@ def _(images):
 
 
 @app.cell
-def _(images, images_normed):
+def _(images, images_normed, np, plot_image_before_after_normalization):
     random_idx = np.random.randint(len(images))
 
     img_before = images[random_idx]
@@ -364,7 +397,7 @@ def _():
 
 
 @app.cell
-def _(images_normed):
+def _(images_normed, np):
     pixel_features = np.reshape(images_normed, (len(images_normed), -1))
 
     mo.md(f"➡️ Shape of pixel value features: **{pixel_features.shape}**")
@@ -388,7 +421,7 @@ def _():
 
 
 @app.cell
-def _(df, pixel_features, valid_fract_slider):
+def _(df, pd, pixel_features, valid_fract_slider):
     from sklearn.model_selection import train_test_split
 
     X = pixel_features
@@ -527,39 +560,42 @@ def _():
     return
 
 
-@app.function
-def fit_and_evaluate_classifier(model, x_train, y_train, x_val, y_val):
-    """Fit a Scikit-Learn classifier on the training set and report evaluation metrics on the validation set."""
-    # Fit on the training set
-    model.fit(X=x_train, y=y_train)
+@app.cell
+def _(ConfusionMatrixDisplay, confusion_matrix):
+    def fit_and_evaluate_classifier(model, x_train, y_train, x_val, y_val):
+        """Fit a Scikit-Learn classifier on the training set and report evaluation metrics on the validation set."""
+        # Fit on the training set
+        model.fit(X=x_train, y=y_train)
 
-    # Score on the training set
-    acc_train = model.score(X=x_train, y=y_train)
+        # Score on the training set
+        acc_train = model.score(X=x_train, y=y_train)
 
-    # Score on the validation set
-    acc_val = model.score(X=x_val, y=y_val)
+        # Score on the validation set
+        acc_val = model.score(X=x_val, y=y_val)
 
-    # Predict on the training set
-    y_pred_train = model.predict(x_train)
+        # Predict on the training set
+        y_pred_train = model.predict(x_train)
 
-    # Predict on the validation set
-    y_pred_val = model.predict(x_val)
+        # Predict on the validation set
+        y_pred_val = model.predict(x_val)
 
-    # Confusion matrices
-    cm_train = confusion_matrix(y_train, y_pred_train, labels=model.classes_) 
-    disp_train = ConfusionMatrixDisplay(confusion_matrix=cm_train, display_labels=model.classes_)
+        # Confusion matrices
+        cm_train = confusion_matrix(y_train, y_pred_train, labels=model.classes_) 
+        disp_train = ConfusionMatrixDisplay(confusion_matrix=cm_train, display_labels=model.classes_)
 
-    cm_val = confusion_matrix(y_val, y_pred_val, labels=model.classes_)
-    disp_val = ConfusionMatrixDisplay(confusion_matrix=cm_val, display_labels=model.classes_)
+        cm_val = confusion_matrix(y_val, y_pred_val, labels=model.classes_)
+        disp_val = ConfusionMatrixDisplay(confusion_matrix=cm_val, display_labels=model.classes_)
 
-    return {
-        "accuracy_training": acc_train, 
-        "accuracy_validation": acc_val, 
-        "confusion_matrix_training": disp_train,
-        "confusion_matrix_validation": disp_val,
-        "n_train": len(x_train),
-        "n_validation": len(x_val),
-    }
+        return {
+            "accuracy_training": acc_train, 
+            "accuracy_validation": acc_val, 
+            "confusion_matrix_training": disp_train,
+            "confusion_matrix_validation": disp_val,
+            "n_train": len(x_train),
+            "n_validation": len(x_val),
+        }
+
+    return (fit_and_evaluate_classifier,)
 
 
 @app.cell(hide_code=True)
@@ -582,6 +618,7 @@ def _():
 
 @app.cell
 def _(
+    fit_and_evaluate_classifier,
     fit_baseline_btn,
     print_classification_results,
     x_train_projected,
@@ -629,6 +666,7 @@ def _():
 
 @app.cell
 def _(
+    fit_and_evaluate_classifier,
     fit_linear_model_btn,
     print_classification_results,
     x_train_projected,
@@ -725,6 +763,7 @@ def _():
 
 @app.cell
 def _(
+    fit_and_evaluate_classifier,
     fit_decision_tree_btn,
     max_depth_selector,
     print_classification_results,
@@ -865,6 +904,7 @@ def _():
 def _(
     LogisticRegression,
     PCA,
+    fit_and_evaluate_classifier,
     n_components_slider,
     print_classification_results,
     x_train,
@@ -993,7 +1033,7 @@ def _():
 
 
 @app.cell
-def _(pipe, save_btn):
+def _(Path, dump, pipe, save_btn):
     mo.stop(not save_btn.value, mo.md("Click the button to save the pipeline."))
 
     pipeline_file = Path("./pipeline.pkl")
@@ -1054,7 +1094,7 @@ def _():
 
 
 @app.cell
-def _():
+def _(BytesIO, Image, alt, base64, np):
     def url2img(base64_image: str) -> np.ndarray:
         header, encoded = base64_image.split(",", 1)
         img = Image.open(BytesIO(base64.b64decode(encoded)))
@@ -1116,23 +1156,26 @@ def _():
     return create_altair_chart, img2url, url2img
 
 
-@app.function
-def predict_on_regular_grid(model, extent, nx=200, ny=200):
-    """Run a classifier on a regular grid in a given domain."""
-    xx, yy = np.meshgrid(
-        np.linspace(extent[0], extent[1], nx), 
-        np.linspace(extent[2], extent[3], ny),
-    )
-    grid_yx = np.c_[xx.ravel(), yy.ravel()]
-    preds_grid = model.predict(grid_yx)
-    label2id = {cls: i for i, cls in enumerate(model.classes_)}
-    preds_grid_idx = np.array([label2id[c] for c in preds_grid]).reshape(ny, nx)
+@app.cell
+def _(np):
+    def predict_on_regular_grid(model, extent, nx=200, ny=200):
+        """Run a classifier on a regular grid in a given domain."""
+        xx, yy = np.meshgrid(
+            np.linspace(extent[0], extent[1], nx), 
+            np.linspace(extent[2], extent[3], ny),
+        )
+        grid_yx = np.c_[xx.ravel(), yy.ravel()]
+        preds_grid = model.predict(grid_yx)
+        label2id = {cls: i for i, cls in enumerate(model.classes_)}
+        preds_grid_idx = np.array([label2id[c] for c in preds_grid]).reshape(ny, nx)
 
-    return preds_grid_idx
+        return preds_grid_idx
+
+    return (predict_on_regular_grid,)
 
 
 @app.cell
-def _():
+def _(ListedColormap, pd, plt, predict_on_regular_grid, sns):
     def plot_classification_results(model, X, y, results, extent, split="validation", palette_name="pastel"):
         # Prediction on a regular grid
         preds_grid_idx = predict_on_regular_grid(model, extent)
@@ -1208,23 +1251,26 @@ def _():
     return plot_classification_results, print_classification_results
 
 
-@app.function
-def plot_image_before_after_normalization(img_before, img_after):
-    """TODO: add docsting"""
-    fig, axes = plt.subplots(ncols=2)
-    im0 = axes[0].imshow(img_before, cmap="gray", vmin=0, vmax=255)
-    axes[0].set_title("Original image")
-    axes[0].set_axis_off()
-    fig.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
-    im1 = axes[1].imshow(img_after, cmap="gray", vmin=0, vmax=1)
-    axes[1].set_title("Intensity rescaled")
-    axes[1].set_axis_off()
-    fig.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
-    return fig
+@app.cell
+def _(plt):
+    def plot_image_before_after_normalization(img_before, img_after):
+        """TODO: add docsting"""
+        fig, axes = plt.subplots(ncols=2)
+        im0 = axes[0].imshow(img_before, cmap="gray", vmin=0, vmax=255)
+        axes[0].set_title("Original image")
+        axes[0].set_axis_off()
+        fig.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
+        im1 = axes[1].imshow(img_after, cmap="gray", vmin=0, vmax=1)
+        axes[1].set_title("Intensity rescaled")
+        axes[1].set_axis_off()
+        fig.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
+        return fig
+
+    return (plot_image_before_after_normalization,)
 
 
 @app.cell
-def _(fit_model_with_pca):
+def _(fit_model_with_pca, np, plt):
     def plot_accuracy_vs_pca_components(model, x_train, x_val, y_train, y_val, max_components=20):
         """Does this show up in live docs?"""
         train_accs = []
