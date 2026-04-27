@@ -9,9 +9,9 @@ This workshop introduces [...]. It walks through:
 
 ## Quick start
 
-You can access the workshop material directly in your web browser:
+You can access the workshop material directly in your web browser at this link:
 
-### ➡️ [Marimo]()
+> ➡️ https://epfl-center-for-imaging.github.io/vision-workshop/
 
 ### Local installation
 
