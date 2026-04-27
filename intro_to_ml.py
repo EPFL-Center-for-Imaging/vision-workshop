@@ -7,8 +7,8 @@ with app.setup(hide_code=True):
     import marimo as mo
 
 
-@app.cell
-async def _():
+@app.cell(hide_code=True)
+async def _(Path, dataset_path, os, public_folder_path, requests, zipfile):
     import sys
 
     # Seaborn isn't installed by default in Pyodide, so we install it here (only if the notebook runs on WebAssembly):
@@ -16,9 +16,25 @@ async def _():
         import micropip
         await micropip.install("seaborn")
         import seaborn as sns
+
+        # Create the `public` folder
+        if not public_folder_path.exists():
+            os.mkdir(public_folder_path)
+    
+        # Download and unzip the dataset from the repository
+        if not dataset_path.exists():
+            zip_path = Path("public") / "dataset.zip"
+            url = mo.notebook_location() / "public" / "dataset.zip"
+            r = requests.get(str(url))
+            r.raise_for_status()
+            zip_path.write_bytes(r.content)
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(public_folder_path)
+            print(f"Extracted dataset in: {public_folder_path}")
+            zip_path.unlink(missing_ok=True)  # Delete the zipped dataset
     else:
         import seaborn as sns
-    return sns, sys
+    return (sns,)
 
 
 @app.cell(hide_code=True)
@@ -156,23 +172,10 @@ def _():
 
 @app.cell
 def _(Path):
-    dataset_path = Path("public") / "dataset"
-    return (dataset_path,)
+    public_folder_path = Path("public")
 
-
-@app.cell
-def _(Path, dataset_path, requests, sys, zipfile):
-    if "pyodide" in sys.modules:
-        # Unzip the dataset from the public folder
-        zip_path = Path("public") / "dataset.zip"
-        url = mo.notebook_location() / "public" / "dataset.zip"
-        if not dataset_path.exists():
-            r = requests.get(str(url))
-            r.raise_for_status()
-            zip_path.write_bytes(r.content)
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(dataset_path)
-    return
+    dataset_path = public_folder_path / "dataset"
+    return dataset_path, public_folder_path
 
 
 @app.cell
@@ -643,7 +646,6 @@ def _():
 def _(
     fit_and_evaluate_classifier,
     fit_baseline_btn,
-    print_classification_results,
     x_train_projected,
     x_val_projected,
     y_train,
@@ -691,7 +693,6 @@ def _():
 def _(
     fit_and_evaluate_classifier,
     fit_linear_model_btn,
-    print_classification_results,
     x_train_projected,
     x_val_projected,
     y_train,
@@ -789,7 +790,6 @@ def _(
     fit_and_evaluate_classifier,
     fit_decision_tree_btn,
     max_depth_selector,
-    print_classification_results,
     x_train_projected,
     x_val_projected,
     y_train,
@@ -929,7 +929,6 @@ def _(
     PCA,
     fit_and_evaluate_classifier,
     n_components_slider,
-    print_classification_results,
     x_train,
     x_val,
     y_train,
@@ -1176,13 +1175,8 @@ def _(BytesIO, Image, alt, base64, np):
 
         return chart
 
-    return create_altair_chart, img2url, url2img
-
-
-@app.cell
-def _(np):
     def predict_on_regular_grid(model, extent, nx=200, ny=200):
-        """Run a classifier on a regular grid in a given domain."""
+        """Run a classifier over a regular 2D-XY grid and return class indices."""
         xx, yy = np.meshgrid(
             np.linspace(extent[0], extent[1], nx), 
             np.linspace(extent[2], extent[3], ny),
@@ -1194,12 +1188,13 @@ def _(np):
 
         return preds_grid_idx
 
-    return (predict_on_regular_grid,)
+    return create_altair_chart, img2url, predict_on_regular_grid, url2img
 
 
 @app.cell
 def _(ListedColormap, pd, plt, predict_on_regular_grid, sns):
     def plot_classification_results(model, X, y, results, extent, split="validation", palette_name="pastel"):
+        """Display a confusion matrix and a 2D scatter plot of PCA-0/PCA-1 coordinates colored according to class indices."""
         # Prediction on a regular grid
         preds_grid_idx = predict_on_regular_grid(model, extent)
 
@@ -1258,26 +1253,27 @@ def _(ListedColormap, pd, plt, predict_on_regular_grid, sns):
 
         return fig
 
+    return (plot_classification_results,)
 
-    def print_classification_results(results: dict):
-        """Print a small classification report in Marimo markdown format."""
-        accuracy_train = results["accuracy_training"]
-        accuracy_val = results["accuracy_validation"]
 
-        return mo.md(f"""
-        | Split | N | Accuracy |
-        | ----- | --- | ------ |
-        | Training | {results["n_train"]} | {accuracy_train:.2f} |
-        | Validation | {results["n_validation"]} | {accuracy_val:.2f} |
-        """)
+@app.function
+def print_classification_results(results: dict):
+    """Print a small classification report in Marimo markdown format."""
+    accuracy_train = results["accuracy_training"]
+    accuracy_val = results["accuracy_validation"]
 
-    return plot_classification_results, print_classification_results
+    return mo.md(f"""
+    | Split | N | Accuracy |
+    | ----- | --- | ------ |
+    | Training | {results["n_train"]} | {accuracy_train:.2f} |
+    | Validation | {results["n_validation"]} | {accuracy_val:.2f} |
+    """)
 
 
 @app.cell
 def _(plt):
     def plot_image_before_after_normalization(img_before, img_after):
-        """TODO: add docsting"""
+        """Display a side-by-side comparison of an image before and after min/max normalization."""
         fig, axes = plt.subplots(ncols=2)
         im0 = axes[0].imshow(img_before, cmap="gray", vmin=0, vmax=255)
         axes[0].set_title("Original image")
@@ -1295,7 +1291,7 @@ def _(plt):
 @app.cell
 def _(fit_model_with_pca, np, plt):
     def plot_accuracy_vs_pca_components(model, x_train, x_val, y_train, y_val, max_components=20):
-        """Does this show up in live docs?"""
+        """Plot training and validation accuracies against the number of PCA components."""
         train_accs = []
         valid_accs = []
         for n_components in range(1, max_components+1):
