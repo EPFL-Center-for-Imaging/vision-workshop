@@ -48,6 +48,13 @@ async with app.setup(hide_code=True):
             response = requests.get(_img_src)
             with open(_img_dst, "wb") as _f:
                 _f.write(response.content)
+
+        _img_dst = assets_path / "training_fig.svg"
+        if not _img_dst.exists():
+            _img_src = "https://raw.githubusercontent.com/EPFL-Center-for-Imaging/vision-workshop/f2ff7c956d4ef5f16cac789e286257cc13308363/public/assets/training_fig.svg"
+            response = requests.get(_img_src)
+            with open(_img_dst, "wb") as _f:
+                _f.write(response.content)
     else:
         import seaborn as sns
 
@@ -205,7 +212,7 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     path_exists = "✅ yes" if dataset_path.exists() else "❌ no"
 
