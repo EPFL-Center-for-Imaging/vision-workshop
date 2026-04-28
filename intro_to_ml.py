@@ -24,15 +24,16 @@ async def _(Path, dataset_path, public_folder_path, requests, zipfile):
 
         # Download and unzip the dataset from the repository
         if not dataset_path.exists():
-            zip_path = Path("public") / "dataset.zip"
-            url = mo.notebook_location() / "public" / "dataset.zip"
-            r = requests.get(str(url))
-            r.raise_for_status()
-            zip_path.write_bytes(r.content)
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(public_folder_path)
-            print(f"Extracted dataset in: {public_folder_path}")
-            zip_path.unlink(missing_ok=True)  # Delete the zipped dataset
+            with mo.status.spinner(title="⏬ Downloading the dataset...") as _spinner:
+                zip_path = Path("public") / "dataset.zip"
+                url = mo.notebook_location() / "public" / "dataset.zip"
+                r = requests.get(str(url))
+                r.raise_for_status()
+                zip_path.write_bytes(r.content)
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    zf.extractall(public_folder_path)
+                print(f"Extracted dataset in: {public_folder_path}")
+                zip_path.unlink(missing_ok=True)  # Delete the zipped dataset
     else:
         import seaborn as sns
     return (sns,)
@@ -328,7 +329,7 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     measurements_btn = mo.ui.run_button(label="Compute measurements")
 
@@ -366,16 +367,16 @@ def _():
     mo.md(r"""
     ### Using the DataFrame viewer
 
-    Marimo's built-in DataFrame viewer is a powerful tool for exploring datasets. It offers a **Search** functionality which can be used to filter data, and a **Chart builder** that can be used to create plots without writing any code.
+    Marimo's built-in DataFrame viewer is a powerful tool for exploring datasets. It offers a **search** functionality which can be used to filter data, and a **chart builder** that can be used to create plots without writing any code.
 
 
     /// admonition | Exercise
 
-    1. Can you *search* the DataFrame and display only classes *3* and *4*, sorted by *mean_intensity* ?
+    1. Can you search the DataFrame and display only classes *3* and *4*, sorted by *mean_intensity* ?
 
-    2. Can you use the *Chart builder* tool to plot
+    2. Can you use the chart builder (*Visualize*) to plot
 
-        i. A 2D scatter of the mean versus standard deviation intensity?
+        i. A 2D scatter plot of the mean versus standard deviation intensity, colored by class?
 
         ii. A pie chart respresenting the counts in each class?
 
@@ -432,7 +433,7 @@ def _(images, np, rescale_intensity):
     return (images_normed,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(images, images_normed, np, plot_image_before_after_normalization):
     random_idx = np.random.randint(len(images))
 
@@ -493,7 +494,7 @@ def _(df, pd, pixel_features, valid_fract_slider):
     })
 
     mo.vstack([valid_fract_slider, _df])
-    return X, x_train, x_val, y_train, y_val
+    return X, x_train, x_val, y, y_train, y_val
 
 
 @app.cell(hide_code=True)
@@ -518,7 +519,7 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     compute_pca_btn = mo.ui.run_button(label="Compute PCA")
 
@@ -544,13 +545,6 @@ def _(X, compute_pca_btn, x_train, x_val):
     return PCA, X_projected, x_train_projected, x_val_projected
 
 
-@app.cell
-def _(x_train_projected):
-    # We also compute the bounds of the projected training data (we'll use this later)
-    extent = [x_train_projected[:, 0].min(), x_train_projected[:, 0].max(), x_train_projected[:, 1].min(), x_train_projected[:, 1].max()]
-    return (extent,)
-
-
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
@@ -559,7 +553,7 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(X_projected, df):
     df["PCA-0"] = X_projected[:, 0]
     df["PCA-1"] = X_projected[:, 1]
@@ -584,7 +578,7 @@ def _():
 
 @app.cell
 def _(create_altair_chart, df, switch_show_images):
-    chart_pca = create_altair_chart(df, x_col="PCA-0", y_col="PCA-1", show_images=switch_show_images.value, size=700)
+    chart_pca = create_altair_chart(df, x_col="PCA-0", y_col="PCA-1", show_images=switch_show_images.value, size=600)
 
     chart_pca = mo.ui.altair_chart(chart_pca)  # To make the plot interactive
     return (chart_pca,)
@@ -592,7 +586,8 @@ def _(create_altair_chart, df, switch_show_images):
 
 @app.cell
 def _(chart_pca, switch_show_images):
-    _selection = chart_pca.value[['class', 'image', 'PCA-0', 'PCA-1']]  # The chart's "value" is the data in the selected region
+    # The chart's "value" is the data in the selected region
+    _selection = chart_pca.value[['class', 'image', 'PCA-0', 'PCA-1']]
 
     mo.vstack([switch_show_images, chart_pca, _selection])
     return
@@ -649,6 +644,10 @@ def _(ConfusionMatrixDisplay, confusion_matrix):
             "confusion_matrix_validation": disp_val,
             "n_train": len(x_train),
             "n_validation": len(x_val),
+            "x_training": x_train,
+            "x_validation": x_val,
+            "y_training": y_train,
+            "y_validation": y_val,
         }
 
     return (fit_and_evaluate_classifier,)
@@ -666,6 +665,13 @@ def _():
 
 @app.cell
 def _():
+    from sklearn.dummy import DummyClassifier
+
+    return (DummyClassifier,)
+
+
+@app.cell(hide_code=True)
+def _():
     fit_baseline_btn = mo.ui.run_button(label="Fit baseline model")
 
     fit_baseline_btn
@@ -674,6 +680,7 @@ def _():
 
 @app.cell
 def _(
+    DummyClassifier,
     fit_and_evaluate_classifier,
     fit_baseline_btn,
     x_train_projected,
@@ -682,8 +689,6 @@ def _(
     y_val,
 ):
     mo.stop(not fit_baseline_btn.value, mo.md("Click the button to fit the baseline model."))
-
-    from sklearn.dummy import DummyClassifier
 
     baseline_model = DummyClassifier(strategy="most_frequent")  # always predicts the most frequent class
 
@@ -710,6 +715,13 @@ def _():
 
 @app.cell
 def _():
+    from sklearn.linear_model import LogisticRegression
+
+    return (LogisticRegression,)
+
+
+@app.cell(hide_code=True)
+def _():
     # Fit model button
     fit_linear_model_btn = mo.ui.run_button(label="Fit linear model")
 
@@ -719,6 +731,7 @@ def _():
 
 @app.cell
 def _(
+    LogisticRegression,
     fit_and_evaluate_classifier,
     fit_linear_model_btn,
     x_train_projected,
@@ -728,8 +741,6 @@ def _(
 ):
     mo.stop(not fit_linear_model_btn.value, mo.md("Click the button to fit the logistic regression model."))
 
-    from sklearn.linear_model import LogisticRegression
-
     linear_model = LogisticRegression(C=1.0, max_iter=1000)
 
     linear_results = fit_and_evaluate_classifier(linear_model, x_train_projected, y_train, x_val_projected, y_val)
@@ -738,7 +749,7 @@ def _(
         mo.md("""### Logistic regression"""),
         mo.hstack([print_classification_results(linear_results)])
     ], align="center")
-    return LogisticRegression, linear_model, linear_results
+    return linear_model, linear_results
 
 
 @app.cell
@@ -749,20 +760,12 @@ def _():
 
 @app.cell
 def _(
-    extent,
     linear_model,
     linear_results,
     plot_classification_results,
     split_dropdown,
-    x_train_projected,
-    x_val_projected,
-    y_train,
-    y_val,
 ):
-    if split_dropdown.value == "training":
-        _fig = plot_classification_results(linear_model, x_train_projected, y_train, linear_results, extent, split="training")
-    elif split_dropdown.value == "validation":
-        _fig = plot_classification_results(linear_model, x_val_projected, y_val, linear_results, extent, split="validation")
+    _fig = plot_classification_results(linear_model, linear_results, split=split_dropdown.value)
 
     mo.vstack([split_dropdown, _fig])
     return
@@ -792,14 +795,22 @@ def _():
 
 @app.cell
 def _():
+    from sklearn.tree import DecisionTreeClassifier
+
+    return (DecisionTreeClassifier,)
+
+
+@app.cell(hide_code=True)
+def _():
     fit_decision_tree_btn = mo.ui.run_button(label="Fit decision tree model")
 
     fit_decision_tree_btn
     return (fit_decision_tree_btn,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
+    DecisionTreeClassifier,
     fit_and_evaluate_classifier,
     fit_decision_tree_btn,
     x_train_projected,
@@ -809,8 +820,6 @@ def _(
 ):
     mo.stop(not fit_decision_tree_btn.value, mo.md("Click the button to fit the decision tree model."))
 
-    from sklearn.tree import DecisionTreeClassifier
-
     _model = DecisionTreeClassifier()
 
     _decision_tree_results = fit_and_evaluate_classifier(_model, x_train_projected, y_train, x_val_projected, y_val)
@@ -819,26 +828,25 @@ def _(
         mo.md("""### Decision tree"""),
         mo.hstack([print_classification_results(_decision_tree_results)])
     ], align="center")
-    return (DecisionTreeClassifier,)
+    return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     # We also create a slider to tweak the model's `max_depth` parameter:
     max_depth_selector = mo.ui.slider(start=1, stop=15, value=5, show_value=True, label="Max depth ", debounce=True)
     return (max_depth_selector,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     split_dropdown_dt = mo.ui.dropdown(options=["training", "validation"], value="validation", label="Show on split ")
     return (split_dropdown_dt,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     DecisionTreeClassifier,
-    extent,
     fit_and_evaluate_classifier,
     max_depth_selector,
     plot_classification_results,
@@ -852,10 +860,7 @@ def _(
 
     decision_tree_results = fit_and_evaluate_classifier(decision_tree_model, x_train_projected, y_train, x_val_projected, y_val)
 
-    if split_dropdown_dt.value == "training":
-        _fig = plot_classification_results(decision_tree_model, x_train_projected, y_train, decision_tree_results, extent, split="training")
-    elif split_dropdown_dt.value == "validation":
-        _fig = plot_classification_results(decision_tree_model, x_val_projected, y_val, decision_tree_results, extent, split="validation")
+    _fig = plot_classification_results(decision_tree_model, decision_tree_results, split=split_dropdown_dt.value)
 
     mo.vstack([max_depth_selector, split_dropdown_dt, _fig])
     return
@@ -886,8 +891,8 @@ def _():
     svc_results = fit_and_evaluate_classifier(svc_model, x_train_projected, y_train, x_val_projected, y_val)
 
     mo.vstack([
-        plot_classification_results(svc_model, x_train_projected, y_train, svc_results, extent, split="training"),
-        plot_classification_results(svc_model, x_val_projected, y_val, svc_results, extent, split="validation")
+        plot_classification_results(svc_model, svc_results, split="training"),
+        plot_classification_results(svc_model, svc_results, split="validation")
     ])
     ```
 
@@ -901,8 +906,8 @@ def _():
     tree_results = fit_and_evaluate_classifier(tree_model, x_train_projected, y_train, x_val_projected, y_val)
 
     mo.vstack([
-        plot_classification_results(tree_model, x_train_projected, y_train, tree_results, extent, split="training"),
-        plot_classification_results(tree_model, x_val_projected, y_val, tree_results, extent, split="validation")
+        plot_classification_results(tree_model, tree_results, split="training"),
+        plot_classification_results(tree_model, tree_results, split="validation")
     ])
     ```
 
@@ -916,8 +921,8 @@ def _():
     nn_results = fit_and_evaluate_classifier(nn_model, x_train_projected, y_train, x_val_projected, y_val)
 
     mo.vstack([
-        plot_classification_results(nn_model, x_train_projected, y_train, nn_results, extent, split="training"),
-        plot_classification_results(nn_model, x_val_projected, y_val, nn_results, extent, split="validation")
+        plot_classification_results(nn_model, nn_results, split="training"),
+        plot_classification_results(nn_model, nn_results, split="validation")
     ])
     ```
     ///
@@ -935,13 +940,13 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     n_components_slider = mo.ui.slider(start=1, stop=20, value=2, label="PCA components", show_value=True)
     return (n_components_slider,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     LogisticRegression,
     PCA,
@@ -959,14 +964,19 @@ def _(
         x_val_projected = pca.transform(x_val)
         return fit_and_evaluate_classifier(model, x_train_projected, y_train, x_val_projected, y_val)
 
+    _model = LogisticRegression(max_iter=1000)
 
     _results = fit_model_with_pca(
-        model=LogisticRegression(max_iter=1000),  # 
+        model=_model,
         x_train=x_train, y_train=y_train, x_val=x_val, y_val=y_val,
         n_components=n_components_slider.value,
     )
 
-    mo.vstack([n_components_slider, mo.hstack([print_classification_results(_results)])], align="center")
+    mo.vstack([
+        mo.md(f"Model: **{_model.__class__.__name__}**"),
+        n_components_slider, 
+        mo.hstack([print_classification_results(_results)])
+    ], align="center")
     return (fit_model_with_pca,)
 
 
@@ -978,7 +988,7 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     pca_grid_search_btn = mo.ui.run_button(label="Optimize PCA")
 
@@ -986,7 +996,7 @@ def _():
     return (pca_grid_search_btn,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     LogisticRegression,
     pca_grid_search_btn,
@@ -998,10 +1008,12 @@ def _(
 ):
     mo.stop(not pca_grid_search_btn.value, mo.md("Click the button to run the computation."))
 
+    _model = LogisticRegression(max_iter=1000)
+
     pca_grid_search_btn
     with mo.status.spinner(title="🚀 Working on it...") as _spinner:
         _fig, best_n_components = plot_accuracy_vs_pca_components(
-            model=LogisticRegression(max_iter=1000),
+            model=_model,
             x_train=x_train, 
             x_val=x_val, 
             y_train=y_train, 
@@ -1054,12 +1066,46 @@ def _(
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
+    Is that final score acceptable? Should we work more on improving the feature extraction, the model, or other parts of the pipeline to try to improve it?
+
+    Taking a look at the misclassified data will give us a hint:
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    show_misclassified_btn = mo.ui.run_button(label="Show misclassified images")
+
+    show_misclassified_btn
+    return (show_misclassified_btn,)
+
+
+@app.cell(hide_code=True)
+def _(X, pipe, show_misclassified, show_misclassified_btn, y):
+    mo.stop(not show_misclassified_btn.value, mo.md("Click the button to show misclassified images."))
+
+    # Show misclassified examples
+    x_pred = pipe.predict(X)
+
+    misclassified = []
+    for _x, _p, _y in zip(X, x_pred, y):
+        if _p != _y:
+            misclassified.append({"image": _x, "pred": _p, "true": _y})
+
+    show_misclassified(misclassified)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
     Finally, we can save the pipeline as a Pickle file so that we can reload it in other programs.
     """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     save_btn = mo.ui.run_button(label="Save the pipeline")
 
@@ -1067,7 +1113,7 @@ def _():
     return (save_btn,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(Path, dump, pipe, save_btn):
     mo.stop(not save_btn.value, mo.md("Click the button to save the pipeline."))
 
@@ -1081,15 +1127,31 @@ def _(Path, dump, pipe, save_btn):
 
 
 @app.cell(hide_code=True)
-def _():
-    mo.md(r"""
+def _(inference_link, inference_screenshot):
+    mo.md(f"""
     ## Running a model live on a camera feed
 
     Now that our pipeline is saved, we can reload it in other Python programs and apply our classifier to new images, for example those coming from a live camera feed.
 
-    Here, we have put together a Python script that captures video frames from a USB camera device, identifies a bounding box around each object in the image, and applies our Scikit-learn pipeline to each of object to classify them.
+    For the demonstration, we have put together a Python script that captures video frames from a USB camera device, identifies a bounding box around each object in the image, and applies our Scikit-learn pipeline to each of object to classify them.
 
-    [↗️ Inference script](https://github.com/EPFL-Center-for-Imaging/vision-workshop/blob/main/inference.py)
+    {inference_link}
+
+    {inference_screenshot}
+
+    /// note
+    You don't have to run the inference script yourself during the workshop (unless you have a camera and setup ready for it!)
+    ///
+
+    /// admonition | Discussion
+
+    How robust is our model to
+
+    - variations in the illumination conditions?
+    - changes in the distance or orientation of the camera?
+    - handwriting among different people?
+
+    ///
     """)
     return
 
@@ -1106,20 +1168,6 @@ def _(mermaid_chart):
     Thanks to this, we have managed to develop a working image classification application.
     """)
     return
-
-
-@app.cell(hide_code=True)
-def _():
-    mermaid_chart = mo.mermaid("""
-    flowchart LR
-        A(🔬 Data inspection) --> B(⚙️ Preprocessing)
-        B --> C(🛠️ Featurization)
-        C --> D(🔍 Model selection)
-        D --> E(🎓 Training)
-        E --> F(⚖️ Evaluation)
-        F --> G(🔋 Inference)
-    """)
-    return (mermaid_chart,)
 
 
 @app.cell(hide_code=True)
@@ -1208,8 +1256,14 @@ def _(BytesIO, Image, alt, base64, np):
 
         return chart
 
-    def predict_on_regular_grid(model, extent, nx=200, ny=200):
+    return create_altair_chart, img2url, url2img
+
+
+@app.cell(hide_code=True)
+def _(extent, np):
+    def predict_on_regular_grid(model, nx=200, ny=200):
         """Run a classifier over a regular 2D-XY grid and return class indices."""
+        global extent
         xx, yy = np.meshgrid(
             np.linspace(extent[0], extent[1], nx), 
             np.linspace(extent[2], extent[3], ny),
@@ -1221,15 +1275,19 @@ def _(BytesIO, Image, alt, base64, np):
 
         return preds_grid_idx
 
-    return create_altair_chart, img2url, predict_on_regular_grid, url2img
+    return (predict_on_regular_grid,)
 
 
 @app.cell(hide_code=True)
-def _(ListedColormap, pd, plt, predict_on_regular_grid, sns):
-    def plot_classification_results(model, X, y, results, extent, split="validation", palette_name="pastel"):
+def _(ListedColormap, extent, pd, plt, predict_on_regular_grid, sns):
+    def plot_classification_results(model, results, split="validation", palette_name="pastel"):
         """Display a confusion matrix and a 2D scatter plot of PCA-0/PCA-1 coordinates colored according to class indices."""
+        global extent
         # Prediction on a regular grid
-        preds_grid_idx = predict_on_regular_grid(model, extent)
+        preds_grid_idx = predict_on_regular_grid(model)
+
+        X = results[f"x_{split}"]
+        y = results[f"y_{split}"]
 
         df_train = pd.DataFrame({"PCA-0": X[:, 0], "PCA-1": X[:, 1], "class": y})
 
@@ -1280,7 +1338,7 @@ def _(ListedColormap, pd, plt, predict_on_regular_grid, sns):
             loc="upper left",
             borderaxespad=0
         )
-        ax_plot.set_title("Classification boundaries")
+        ax_plot.set_title(f"Classification boundaries ({model.__class__.__name__})")
 
         plt.tight_layout()
 
@@ -1349,6 +1407,61 @@ def _(fit_model_with_pca, np, plt):
         return fig, pca_components_best_valid_acc
 
     return (plot_accuracy_vs_pca_components,)
+
+
+@app.cell(hide_code=True)
+def _(images, np, plt):
+    def show_misclassified(misclassified, ncols=7):
+        """Display misclassified examples."""
+        nrows = int(np.ceil(len(misclassified) / ncols))
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(12, 6))
+        for idx, item in enumerate(misclassified):
+            ax = axes.ravel()[idx]
+            im = item["image"].reshape((images.shape[1], images.shape[2]))
+            ax.imshow(im, cmap="gray")
+            ax.set_title(f"Predicted: {item['pred']}\nTrue: {item['true']}")
+        for ax in axes.ravel():
+            ax.set_axis_off()
+        plt.tight_layout()
+        return fig
+
+    return (show_misclassified,)
+
+
+@app.cell(hide_code=True)
+def _(x_train_projected):
+    # The bounds of the projected training data - we keep this as a global variable
+    extent = [x_train_projected[:, 0].min(), x_train_projected[:, 0].max(), x_train_projected[:, 1].min(), x_train_projected[:, 1].max()]
+    return (extent,)
+
+
+@app.cell(hide_code=True)
+def _(public_folder_path):
+    _img_src = public_folder_path / "assets" / "inference.png"
+
+    inference_screenshot = mo.vstack([mo.image(src=_img_src, alt="screenshot", height=400, caption="Live inference (screenshot)")], align="center")
+    return (inference_screenshot,)
+
+
+@app.cell(hide_code=True)
+def _():
+    # We interpolate this markdown so that it renders as centered text:
+    inference_link = mo.vstack([mo.md("[↗️ Inference script](https://github.com/EPFL-Center-for-Imaging/vision-workshop/blob/main/inference.py)")], align="center")
+    return (inference_link,)
+
+
+@app.cell(hide_code=True)
+def _():
+    mermaid_chart = mo.mermaid("""
+    flowchart LR
+        A(🔬 Data inspection) --> B(⚙️ Preprocessing)
+        B --> C(🛠️ Featurization)
+        C --> D(🔍 Model selection)
+        D --> E(🎓 Training)
+        E --> F(⚖️ Evaluation)
+        F --> G(🔋 Inference)
+    """)
+    return (mermaid_chart,)
 
 
 if __name__ == "__main__":
