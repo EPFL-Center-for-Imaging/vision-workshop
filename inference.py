@@ -22,38 +22,49 @@ with open("pipeline.pkl", "rb") as f:
 
 
 def extract_digit_from_digit_roi(image: np.ndarray) -> np.ndarray:
-    image = img_as_ubyte(image)
+    """Assuming that a digit is drawn inside the ROI, we extract a crop around it and resize it to (50, 50)."""
+    image = img_as_ubyte(image)  # Convert to 8-bit
     
+    # Downscale by a factor 2
     resized = rescale(image, scale=0.5)
     
+    # Otsu threshold
     try:
         binary = resized > threshold_otsu(resized)
     except ValueError:
         return img_as_ubyte(np.zeros((50, 50)))
     
+    # Labelling
     labelled = label(binary)
 
+    # The white background is assumed to be the biggest object
     light_square = keep_n_biggest_objects(labelled, n=1)
 
+    # We assume that the digit is the biggest "hole" in that bright background
+    # => If the digit is connected to the border it won't be detected
     filled_light_square = ndi.binary_fill_holes(light_square)
-    
     binary_in_light_square = np.logical_and(filled_light_square, light_square == 0)
-    
     labelled_in_light_square = label(binary_in_light_square)
     
     n_objects = labelled_in_light_square.max()
     if n_objects == 0:
+        # Case where the ROI is empty
         digit_crop = resized
     else:
+        # Digit = biggest object
         digit = keep_n_biggest_objects(labelled_in_light_square, n=1)
+        # Extract bounding box
         df = pd.DataFrame(
             regionprops_table(digit, intensity_image=resized, properties=["bbox"])
         )
         digit_row = df.iloc[0]
+        # Crop around the digit
         digit_crop = resized[digit_row["bbox-0"] : digit_row["bbox-2"], digit_row["bbox-1"] : digit_row["bbox-3"]]
 
+    # Resize to a fixed size
     digit_crop = resize(digit_crop, output_shape=(50, 50))
     
+    # Convert to 8-bit
     digit_crop = img_as_ubyte(digit_crop)
     
     return digit_crop

@@ -31,3 +31,4 @@ __marimo__/
 layouts/
 *.pkl
 todo.txt
+demo_digits_extraction.ipynb

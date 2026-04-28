@@ -1,3 +1,8 @@
+"""
+Script used to extract digit images and the corresponding ground truth labels from images of training grids captured by a camera device. 
+
+The ground truth labels are inferred from the position of the digits in the grid, which is predetermined.
+"""
 import os
 import sys
 from pathlib import Path
@@ -15,6 +20,7 @@ from skimage.util import img_as_ubyte
 
 
 def keep_n_biggest_objects(labelled: np.ndarray, n=1) -> np.ndarray:
+    """Remove all but the N biggest objects in a labelled array."""
     uniques, counts = np.unique(labelled, return_counts=1)
 
     # Ignore the background if it's there
@@ -22,7 +28,7 @@ def keep_n_biggest_objects(labelled: np.ndarray, n=1) -> np.ndarray:
         uniques = uniques[1:]
         counts = counts[1:]
 
-    # Sort unique values by counts (descending), then extract the n unique values corresponding to the biggest objects
+    # Sort unique values by counts (descending), then extract the N unique values corresponding to the biggest objects
     biggest_labels = uniques[np.argsort(counts)[::-1][:n]]
 
     biggest_objects_filt = np.isin(labelled, biggest_labels)
@@ -33,7 +39,8 @@ def keep_n_biggest_objects(labelled: np.ndarray, n=1) -> np.ndarray:
     return biggest_objects_mask
 
 
-def detect_digit_squares(image: np.ndarray, grid_shape: tuple) -> pd.DataFrame:
+def detect_digit_rois_in_training_grid(image: np.ndarray, grid_shape: tuple) -> pd.DataFrame:
+    """Extract digits from the image of a training grid."""
     # Convert the image to gray
     gray = rgb2gray(image)
 
@@ -79,20 +86,15 @@ def detect_digit_squares(image: np.ndarray, grid_shape: tuple) -> pd.DataFrame:
     return df
 
 
-def extract_digit_from_digit_square(image: np.ndarray) -> np.ndarray:
+def extract_digit_from_digit_roi(image: np.ndarray) -> np.ndarray:
+    """Note: almost the same as in the inference script, but we print warnings."""
     image = img_as_ubyte(image)
-    
     resized = rescale(image, scale=0.5)
-    
     binary = resized > threshold_otsu(resized)
     labelled = label(binary)
-
     light_square = keep_n_biggest_objects(labelled, n=1)
-
     filled_light_square = ndi.binary_fill_holes(light_square)
-    
     binary_in_light_square = np.logical_and(filled_light_square, light_square == 0)
-    
     labelled_in_light_square = label(binary_in_light_square)
     
     n_objects = labelled_in_light_square.max()
@@ -108,49 +110,54 @@ def extract_digit_from_digit_square(image: np.ndarray) -> np.ndarray:
         digit_crop = resized[digit_row["bbox-0"] : digit_row["bbox-2"], digit_row["bbox-1"] : digit_row["bbox-3"]]
 
     digit_crop = resize(digit_crop, output_shape=(50, 50))
-    
     digit_crop = img_as_ubyte(digit_crop)
     
     return digit_crop
 
 
 if __name__ == "__main__":
+    # Run with, for example: `python preprocessing.py datasets/`
     _, root_img_folder = sys.argv
     
-    # We assume 3 rows and 4 columns, with labels in a fixed, given order:
+    # We assume that the images contain a (N, M) grid of digits in a predetermined order:
     grid_shape = (3, 4)
-    labels = np.array(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B"]).reshape(grid_shape)
+    class_labels = np.array(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B"]).reshape(grid_shape)
 
     root = Path(root_img_folder)
     
-    dst_root = root / "digits"
-    if not dst_root.exists():
-        os.mkdir(dst_root)
+    training_images_dir = root / "raw_training_images"
+    
+    dataset_dir = root / "dataset"
+    if not dataset_dir.exists():
+        os.mkdir(dataset_dir)
 
-    for lab in labels.ravel():
-        dst_dir = dst_root / lab
+    # Create a subdirectory for each class
+    for lab in class_labels.ravel():
+        dst_dir = dataset_dir / lab
         if not dst_dir.exists():
             os.mkdir(dst_dir)
 
-    for image_file in root.glob("*.jpg"):
+    # Iterate over the training images
+    for image_file in training_images_dir.glob("*.jpg"):
         print("---")
         print(image_file)
         print("---")
 
-        img = skimage.io.imread(image_file)
+        training_img = skimage.io.imread(image_file)
 
         # Extract `digit squares` crops, sorted by [centroid-0, centroid-1] so we can assume their class label.
-        df = detect_digit_squares(img, grid_shape)
+        df = detect_digit_rois_in_training_grid(training_img, grid_shape)
         
         # Add the `class` label
-        df["class"] = labels.ravel()
+        df["class"] = class_labels.ravel()
 
         for _, row in df.iterrows():
-            digit_square_img = row["intensity_image"]
+            digit_roi = row["intensity_image"]
+            digit_cls = row["class"]
             
-            digit = extract_digit_from_digit_square(digit_square_img)
+            digit_img = extract_digit_from_digit_roi(digit_roi)
             
-            # Save it in the corresponding class subfolder
-            dst_file = dst_root / row["class"] / f"{image_file.stem}.png"
+            # Save the digit image in the corresponding class subfolder
+            dst_file = dataset_dir / digit_cls / f"{image_file.stem}.png"
 
-            skimage.io.imsave(dst_file, digit)
+            skimage.io.imsave(dst_file, digit_img)

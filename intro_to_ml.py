@@ -147,7 +147,7 @@ def _():
     return (example_slider,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(example_slider):
     mo.md(f"""
     The selected value is: **{example_slider.value}**
@@ -281,6 +281,21 @@ def _(df, imread, np):
 
     mo.md(f"✅ Read all the images into a Numpy array of shape **{images.shape}** corresponding to (N, X, Y).")
     return (images,)
+
+
+@app.cell(hide_code=True)
+def _(dataset_acquisition_fig):
+    mo.md(f"""
+    /// details | How was this image dataset created?
+
+    This dataset was created by imaging 3 by 4 grids of numbers written in a predefined order (the ground truth class labels were inferred from that order). The image processing steps used to extract regions of interest around the numbers are illustrated below:
+
+    {dataset_acquisition_fig}
+
+    The Python script used to implement these steps is available [here](https://github.com/EPFL-Center-for-Imaging/vision-workshop/blob/main/preprocessing.py).
+    ///
+    """)
+    return
 
 
 @app.cell(hide_code=True)
@@ -1433,6 +1448,14 @@ def _(x_train_projected):
     # The bounds of the projected training data - we keep this as a global variable
     extent = [x_train_projected[:, 0].min(), x_train_projected[:, 0].max(), x_train_projected[:, 1].min(), x_train_projected[:, 1].max()]
     return (extent,)
+
+
+@app.cell(hide_code=True)
+def _(public_folder_path):
+    _img_src = public_folder_path / "assets" / "training_fig.svg"
+
+    dataset_acquisition_fig = mo.vstack([mo.image(src=_img_src, alt="training_fig", height=600, caption="How the dataset was created")], align="center")
+    return (dataset_acquisition_fig,)
 
 
 @app.cell(hide_code=True)
