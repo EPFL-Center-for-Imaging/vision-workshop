@@ -34,6 +34,18 @@ async def _(Path, dataset_path, public_folder_path, requests, zipfile):
                     zf.extractall(public_folder_path)
                 print(f"Extracted dataset in: {public_folder_path}")
                 zip_path.unlink(missing_ok=True)  # Delete the zipped dataset
+
+        # Download the figures (TODO: this is probably not the best way to handle this)
+        assets_path = public_folder_path / "assets"
+        if not assets_path.exists():
+            os.mkdir(assets_path)
+
+        _img_dst = assets_path / "inference.png"
+        if not _img_dst.exists():
+            _img_src = "https://raw.githubusercontent.com/EPFL-Center-for-Imaging/vision-workshop/refs/heads/main/public/assets/inference.png"
+            response = requests.get(url)
+            with open(_img_dst, "wb") as _f:
+                _f.write(response.content)
     else:
         import seaborn as sns
     return (sns,)
