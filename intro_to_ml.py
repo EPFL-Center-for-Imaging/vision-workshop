@@ -3,14 +3,17 @@ import marimo
 __generated_with = "0.23.3"
 app = marimo.App(width="medium")
 
-with app.setup(hide_code=True):
+async with app.setup(hide_code=True):
     import marimo as mo
-
-
-@app.cell(hide_code=True)
-async def _(Path, dataset_path, public_folder_path, requests, zipfile):
     import sys
     import os
+    from pathlib import Path
+    import zipfile
+    import requests
+
+    public_folder_path = Path("./public")
+    dataset_path = public_folder_path / "dataset"
+    assets_path = public_folder_path / "assets"
 
     # Seaborn isn't installed by default in Pyodide, so we install it here (only if the notebook runs on WebAssembly):
     if "pyodide" in sys.modules:
@@ -24,40 +27,35 @@ async def _(Path, dataset_path, public_folder_path, requests, zipfile):
 
         # Download and unzip the dataset from the repository
         if not dataset_path.exists():
-            with mo.status.spinner(title="⏬ Downloading the dataset...") as _spinner:
-                zip_path = Path("public") / "dataset.zip"
-                url = mo.notebook_location() / "public" / "dataset.zip"
-                r = requests.get(str(url))
-                r.raise_for_status()
-                zip_path.write_bytes(r.content)
-                with zipfile.ZipFile(zip_path, "r") as zf:
-                    zf.extractall(public_folder_path)
-                print(f"Extracted dataset in: {public_folder_path}")
-                zip_path.unlink(missing_ok=True)  # Delete the zipped dataset
+            # with mo.status.spinner(title="⏬ Downloading the dataset...") as _spinner:
+            zip_path = Path("public") / "dataset.zip"
+            url = mo.notebook_location() / "public" / "dataset.zip"
+            r = requests.get(str(url))
+            r.raise_for_status()
+            zip_path.write_bytes(r.content)
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(public_folder_path)
+            print(f"Extracted dataset in: {public_folder_path}")
+            zip_path.unlink(missing_ok=True)  # Delete the zipped dataset
 
         # Download the figures (TODO: this is probably not the best way to handle this)
-        assets_path = public_folder_path / "assets"
         if not assets_path.exists():
             os.mkdir(assets_path)
 
         _img_dst = assets_path / "inference.png"
         if not _img_dst.exists():
             _img_src = "https://raw.githubusercontent.com/EPFL-Center-for-Imaging/vision-workshop/refs/heads/main/public/assets/inference.png"
-            response = requests.get(url)
+            response = requests.get(_img_src)
             with open(_img_dst, "wb") as _f:
                 _f.write(response.content)
     else:
         import seaborn as sns
-    return (sns,)
 
 
 @app.cell(hide_code=True)
 def _():
     import base64
     import time
-    import zipfile
-    import requests
-    from pathlib import Path
     from io import BytesIO
     from pickle import dump
 
@@ -81,7 +79,6 @@ def _():
         ConfusionMatrixDisplay,
         Image,
         ListedColormap,
-        Path,
         alt,
         base64,
         confusion_matrix,
@@ -90,9 +87,7 @@ def _():
         np,
         pd,
         plt,
-        requests,
         rescale_intensity,
-        zipfile,
     )
 
 
@@ -211,11 +206,7 @@ def _():
 
 
 @app.cell
-def _(Path):
-    public_folder_path = Path("./public")
-
-    dataset_path = public_folder_path / "dataset"
-
+def _():
     path_exists = "✅ yes" if dataset_path.exists() else "❌ no"
 
     # We use Marimo's "vstack" to display items stacked vertically:
@@ -223,7 +214,7 @@ def _(Path):
         mo.md(f"Dataset path: **{str(dataset_path.resolve())}**"),
         mo.md(f"Path exists: **{path_exists}**")
     ])
-    return dataset_path, public_folder_path
+    return
 
 
 @app.cell(hide_code=True)
@@ -245,7 +236,7 @@ def _():
 
 
 @app.cell
-def _(Path, dataset_path, img2url, imread, load_dataset_btn, pd):
+def _(img2url, imread, load_dataset_btn, pd):
     # We use `mo.stop` so that this cell only executes when the button is clicked:
     mo.stop(not load_dataset_btn.value, mo.md("Click the button to load the dataset."))
 
@@ -1141,7 +1132,7 @@ def _():
 
 
 @app.cell(hide_code=True)
-def _(Path, dump, pipe, save_btn):
+def _(dump, pipe, save_btn):
     mo.stop(not save_btn.value, mo.md("Click the button to save the pipeline."))
 
     pipeline_file = Path("./pipeline.pkl")
@@ -1306,7 +1297,7 @@ def _(extent, np):
 
 
 @app.cell(hide_code=True)
-def _(ListedColormap, extent, pd, plt, predict_on_regular_grid, sns):
+def _(ListedColormap, extent, pd, plt, predict_on_regular_grid):
     def plot_classification_results(model, results, split="validation", palette_name="pastel"):
         """Display a confusion matrix and a 2D scatter plot of PCA-0/PCA-1 coordinates colored according to class indices."""
         global extent
@@ -1463,7 +1454,7 @@ def _(x_train_projected):
 
 
 @app.cell(hide_code=True)
-def _(public_folder_path):
+def _():
     _img_src = public_folder_path / "assets" / "training_fig.svg"
 
     dataset_acquisition_fig = mo.vstack([mo.image(src=_img_src, alt="training_fig", height=600, caption="How the dataset was created")], align="center")
@@ -1471,7 +1462,7 @@ def _(public_folder_path):
 
 
 @app.cell(hide_code=True)
-def _(public_folder_path):
+def _():
     _img_src = public_folder_path / "assets" / "inference.png"
 
     inference_screenshot = mo.vstack([mo.image(src=_img_src, alt="screenshot", height=400, caption="Live inference (screenshot)")], align="center")
