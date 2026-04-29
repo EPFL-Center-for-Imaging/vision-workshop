@@ -1,81 +1,36 @@
+"""
+Inference script for digit recognition on a webcam or USB camera.
+"""
+
 import sys
 from pickle import load
 
 import cv2
 import numpy as np
 import pandas as pd
-import scipy.ndimage as ndi
 from skimage.color import rgb2gray
 from skimage.filters import threshold_otsu
 from skimage.measure import regionprops_table
 from skimage.morphology import label
-from skimage.transform import rescale, resize
+from skimage.transform import resize
 from skimage.util import img_as_ubyte
 from skimage.exposure import rescale_intensity
 from skimage.segmentation import clear_border
 
 from preprocessing import keep_n_biggest_objects
 
+
 # Reload the sklearn `pipeline`
 with open("pipeline.pkl", "rb") as f:
     pipe = load(f)
 
 
-def extract_digit_from_digit_roi(image: np.ndarray) -> np.ndarray:
-    """Assuming that a digit is drawn inside the ROI, we extract a crop around it and resize it to (50, 50)."""
-    image = img_as_ubyte(image)  # Convert to 8-bit
-    
-    # Downscale by a factor 2
-    resized = rescale(image, scale=0.5)
-    
-    # Otsu threshold
-    try:
-        binary = resized > threshold_otsu(resized)
-    except ValueError:
-        return img_as_ubyte(np.zeros((50, 50)))
-    
-    # Labelling
-    labelled = label(binary)
-
-    # The white background is assumed to be the biggest object
-    light_square = keep_n_biggest_objects(labelled, n=1)
-
-    # We assume that the digit is the biggest "hole" in that bright background
-    # => If the digit is connected to the border it won't be detected
-    filled_light_square = ndi.binary_fill_holes(light_square)
-    binary_in_light_square = np.logical_and(filled_light_square, light_square == 0)
-    labelled_in_light_square = label(binary_in_light_square)
-    
-    n_objects = labelled_in_light_square.max()
-    if n_objects == 0:
-        # Case where the ROI is empty
-        digit_crop = resized
-    else:
-        # Digit = biggest object
-        digit = keep_n_biggest_objects(labelled_in_light_square, n=1)
-        # Extract bounding box
-        df = pd.DataFrame(
-            regionprops_table(digit, intensity_image=resized, properties=["bbox"])
-        )
-        digit_row = df.iloc[0]
-        # Crop around the digit
-        digit_crop = resized[digit_row["bbox-0"] : digit_row["bbox-2"], digit_row["bbox-1"] : digit_row["bbox-3"]]
-
-    # Resize to a fixed size
-    digit_crop = resize(digit_crop, output_shape=(50, 50))
-    
-    # Convert to 8-bit
-    digit_crop = img_as_ubyte(digit_crop)
-    
-    return digit_crop
-
-
-def detect_digit_roi(image: np.ndarray, max_objects=12) -> pd.DataFrame:
+def detect_digit_roi(image: np.ndarray, max_objects=12, min_area_px=2000) -> pd.DataFrame:
     # RGB => Grayscale
     gray = rgb2gray(image)
     
     # Otsu threshold
-    binary = gray > threshold_otsu(gray)
+    binary = gray < threshold_otsu(gray)
     
     # Labelling + keep biggest object
     labelled = label(binary)
@@ -91,16 +46,30 @@ def detect_digit_roi(image: np.ndarray, max_objects=12) -> pd.DataFrame:
         regionprops_table(
             digit_crops,
             intensity_image=gray,
-            properties=["intensity_image", "bbox"],
-        )
+            properties=["area", "bbox"])
     )
+    
+    # Size filter (ignore small objects)
+    df = df[df["area"] > min_area_px]
+    
+    digit_crops = []
+    for _, row in df.iterrows():
+        # Crop around the digit
+        digit_crop = gray[int(row["bbox-0"]) : int(row["bbox-2"]), int(row["bbox-1"]) : int(row["bbox-3"])]
+        
+        # Resize to a fixed size
+        digit_crop = resize(digit_crop, output_shape=(50, 50))
+        
+        # Convert to 8-bit
+        digit_crop = img_as_ubyte(digit_crop)
+        digit_crops.append(digit_crop)
+    
+    df["roi"] = digit_crops
     
     return df
 
 
-def classify_digit_square(digit_square_img: np.ndarray) -> str:
-    digit = extract_digit_from_digit_roi(digit_square_img)
-    
+def classify_digit_roi(digit: np.ndarray) -> str:
     # Normalize intensity values
     digit_normed = rescale_intensity(digit, out_range=(0, 1))
     
@@ -172,7 +141,7 @@ def main(camera_idx: int):
         
         df = detect_digit_roi(frame)
         
-        df["pred"] = df["intensity_image"].apply(classify_digit_square)
+        df["pred"] = df["roi"].apply(classify_digit_roi)
         
         vis_frame = draw_boxes(frame, df)
 
@@ -187,6 +156,7 @@ def main(camera_idx: int):
 
 
 if __name__ == "__main__":
+    # Run with the correct camera index, for example: `python inference.py 4`
     _, camera_idx = sys.argv
     
     camera_idx = int(camera_idx)
